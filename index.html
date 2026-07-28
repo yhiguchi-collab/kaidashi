@@ -589,7 +589,7 @@
   </div>
 
   <footer class="bottom">
-    <span class="save-note">この端末にのみ自動保存されます</span>
+    <span class="save-note">みんなの入力がリアルタイムで共有されます</span>
     <button type="button" class="btn btn-ghost" id="resetBtn">すべてリセット</button>
   </footer>
 </div>
@@ -604,14 +604,27 @@
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-database-compat.js"></script>
 <script>
 (function () {
   "use strict";
 
-  var STORAGE_KEY = "bbq-shopping-list-v1";
+  var firebaseConfig = {
+    apiKey: "AIzaSyATlYyQzsfXCfjLc0BzEpYdZikuHswXYVA",
+    authDomain: "kaidashi-bbq.firebaseapp.com",
+    databaseURL: "https://kaidashi-bbq-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "kaidashi-bbq",
+    storageBucket: "kaidashi-bbq.firebasestorage.app",
+    messagingSenderId: "300739518882",
+    appId: "1:300739518882:web:1978a55bc2c88c2ecbd2fb"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var stateRef = firebase.database().ref("state");
+  var firstSnapshotReceived = false;
 
   /** @type {{staff: Array<{id:string,name:string}>, food: Array<Item>, drink: Array<Item>}} */
-  var state = loadState();
+  var state = { staff: [], food: [], drink: [] };
 
   var editingStaffId = null;
   var editingItem = null; // { category, id }
@@ -620,21 +633,8 @@
   var EDIT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
   var REMOVE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
-  function loadState() {
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        var parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.staff) && Array.isArray(parsed.food) && Array.isArray(parsed.drink)) {
-          return parsed;
-        }
-      }
-    } catch (e) {}
-    return { staff: [], food: [], drink: [] };
-  }
-
   function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    stateRef.set(state);
   }
 
   function uid() {
@@ -1149,15 +1149,29 @@
   wireQuickAdd("drink", "drinkQuickAdd", "drinkQuickAddBtn");
 
   document.getElementById("resetBtn").addEventListener("click", function () {
-    openConfirm("スタッフ・買い物リストをすべて削除して最初からやり直しますか？この操作は取り消せません。", function () {
+    openConfirm("スタッフ・買い物リストをすべて削除して最初からやり直しますか？(全員分のデータが削除されます。この操作は取り消せません。)", function () {
       state = { staff: [], food: [], drink: [] };
       saveState();
       render();
     });
   });
 
-  dedupeState();
-  saveState();
   render();
+
+  stateRef.on("value", function (snapshot) {
+    var incoming = snapshot.val();
+    state = incoming || { staff: [], food: [], drink: [] };
+
+    if (!firstSnapshotReceived) {
+      firstSnapshotReceived = true;
+      var before = JSON.stringify(state);
+      dedupeState();
+      if (JSON.stringify(state) !== before) {
+        saveState();
+      }
+    }
+
+    render();
+  });
 })();
 </script>
